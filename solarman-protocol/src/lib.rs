@@ -47,9 +47,11 @@ impl<'p> RequestPacket<'p> {
         buf[11..26].copy_from_slice(&[2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         buf[26..trailer_pos].copy_from_slice(self.modbus_payload);
 
-        let checksum: usize = buf[1..trailer_pos].iter().fold(0, |i, b| i + *b as usize);
+        let checksum: u8 = buf[1..trailer_pos]
+            .iter()
+            .fold(0, |i, b| i.wrapping_add(*b));
 
-        buf[trailer_pos..].copy_from_slice(&[(checksum & 255) as u8, 0x15]);
+        buf[trailer_pos..].copy_from_slice(&[checksum, 0x15]);
     }
 
     /// Encodes the packet to a slice
