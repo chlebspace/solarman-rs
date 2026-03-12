@@ -1,13 +1,17 @@
+use std::io;
+
 use thiserror::Error;
 
 #[cfg(feature = "codec")]
-mod codec;
+pub mod codec;
 #[cfg(test)]
 mod tests;
 
 /// Error type used by the library.
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug)]
 pub enum Error {
+    #[error(transparent)]
+    Io(#[from] io::Error),
     #[error("invalid checksum (expected {0:02X?} but got {1:02X?})")]
     Checksum(u8, u8),
     #[error("packet does not contain header")]
@@ -31,7 +35,7 @@ fn write_header(
 ) {
     let payload_len_bytes = payload_len.to_le_bytes();
     let serial_bytes = serial.to_le_bytes();
-    let cc_bytes = (control_code as u16).to_le_bytes();
+    let cc_bytes = control_code.to_le_bytes();
     *buf = [
         0xA5,                 // start
         payload_len_bytes[0], // payload length
@@ -51,6 +55,21 @@ fn solarman_checksum(buf: &[u8]) -> u8 {
     buf.iter().fold(0, |i, b| i.wrapping_add(*b))
 }
 
+pub trait PacketEncode {
+    /// Encodes the packet to a byte buffer.
+    /// The slice must have at least `size()` bytes of space.
+    fn encode(&self, buf: &mut [u8]);
+    /// Calculates the size of the packet in bytes.
+    fn size(&self) -> usize;
+
+    /// Encodes the packet to a `Vec<u8>` (convenience wrapper for `size` and `encode_to_slice`)
+    fn encode_to_vec(&self) -> Vec<u8> {
+        let mut vec = vec![0u8; self.size()];
+        self.encode(&mut vec);
+        vec
+    }
+}
+
 /// Request packet in client mode.
 #[derive(Debug, PartialEq)]
 pub struct RequestPacket {
@@ -64,7 +83,7 @@ pub struct RequestPacket {
     pub modbus_payload: Vec<u8>,
 }
 
-impl RequestPacket {
+impl PacketEncode for RequestPacket {
     fn encode(&self, buf: &mut [u8]) {
         let modbus_len = self.modbus_payload.len();
         assert!(
@@ -72,6 +91,7 @@ impl RequestPacket {
             "modbus payload cannot be longer than 256 bytes, got {modbus_len}"
         );
 
+        #[allow(clippy::cast_possible_truncation)]
         let payload_len = (15 + modbus_len) as u16;
         write_header(
             (&mut buf[..11]).try_into().unwrap(),
@@ -91,27 +111,7 @@ impl RequestPacket {
         buf[trailer_pos..].copy_from_slice(&[checksum, 0x15]);
     }
 
-    /// Encodes the packet to a slice
-    pub fn encode_to_slice(&self, slice: &mut [u8]) -> usize {
-        let size = self.size();
-        let slice_len = slice.len();
-        assert!(
-            slice_len >= size,
-            "buffer too small, expected at least {size} but got {slice_len}",
-        );
-        self.encode(slice);
-        size
-    }
-
-    /// Encodes the packet to a `Vec<u8>` (convenience wrapper for `size` and `encode_to_slice`)
-    pub fn encode_to_vec(&self) -> Vec<u8> {
-        let mut vec = vec![0u8; self.size()];
-        self.encode(&mut vec);
-        vec
-    }
-
-    /// Calculates the size of the packet in bytes.
-    pub fn size(&self) -> usize {
+    fn size(&self) -> usize {
         11 /* hdr */ + 15 /* payload */ + self.modbus_payload.len() + 2 /* trailer */
     }
 }
@@ -195,7 +195,6 @@ pub fn parse(buf: &[u8]) -> Result<Option<(ParsedPacket, usize)>> {
                 modbus_payload: Vec::from(&buf[25..trailer_pos]),
             })
         }
-        CTL_REQUEST => unimplemented!(),
         _ => ParsedPacket::Unknown(RawPacket {
             id: buf[5],
             seq: buf[6],

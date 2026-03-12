@@ -50,6 +50,5 @@ fn parse_complete_packet() {
         offset_time: 1773053696,
         modbus_payload: vec![0x01, 0x03, 0x02, 0x00, 0x05, 0x78, 0x47],
     });
-
-    assert_eq!(parse(&bytes), Ok(Some((expected_packet, bytes.len()))));
+    assert_eq!(parse(&bytes).unwrap(), Some((expected_packet, bytes.len())));
 }
