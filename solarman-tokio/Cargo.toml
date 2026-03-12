@@ -14,4 +14,5 @@ tracing = "0.1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "macros"] }
+tracing-subscriber = "0.3"
 

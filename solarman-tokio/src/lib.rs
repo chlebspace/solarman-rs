@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{time::Duration, u8};
 
 use futures::{SinkExt, StreamExt};
 use solarman_protocol::{ParsedPacket, SolarmanCodec};
@@ -36,6 +36,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 pub struct Client {
     seq: u8,
+    remote_seq: Option<u8>,
     serial: u32,
     modbus_id: u8,
     stream: Framed<TcpStream, SolarmanCodec>,
@@ -49,7 +50,8 @@ impl Client {
     ) -> Result<Self> {
         let tcp = TcpStream::connect(addr).await?;
         Ok(Self {
-            seq: 0,
+            seq: u8::MAX,
+            remote_seq: None,
             serial,
             modbus_id: modbus_slave_id,
             stream: Framed::new(tcp, SolarmanCodec),
@@ -62,13 +64,13 @@ impl Client {
     ) -> Result<modbus_rtu::Response> {
         // TODO: implement timeout
         let modbus_req = modbus_rtu::Request::new(self.modbus_id, function, Duration::ZERO);
+        self.seq = self.seq.wrapping_add(1);
         let solarman_req = solarman_protocol::RequestPacket {
             id: self.seq,
             seq: 0,
             serial: self.serial,
             modbus_payload: modbus_req.to_bytes()?,
         };
-        self.seq += 1;
         tracing::debug!("sending solarman request: {solarman_req:?}");
         self.stream.send(solarman_req).await?;
         let solarman_resp = self.stream.next().await.ok_or(Error::UnexpectedEof)??;

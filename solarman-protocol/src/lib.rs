@@ -167,7 +167,6 @@ pub fn parse(buf: &[u8]) -> Result<Option<(ParsedPacket, usize)>> {
     }
     let payload_len = u16::from_le_bytes([buf[1], buf[2]]) as usize;
     let frame_len = 11 + payload_len + 2;
-    println!("buf: {buf_len}; payload: {payload_len}; frame: {frame_len}");
     if buf_len < frame_len {
         return Ok(None);
     }
