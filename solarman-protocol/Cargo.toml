@@ -10,3 +10,7 @@ tokio-util = { workspace = true, features = ["codec"], optional = true }
 [features]
 default = ["codec"]
 codec = ["tokio-util"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

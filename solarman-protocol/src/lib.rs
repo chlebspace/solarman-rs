@@ -1,9 +1,13 @@
-use std::io;
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
+use std::io;
 use thiserror::Error;
 
 #[cfg(feature = "codec")]
-pub mod codec;
+mod codec;
+#[cfg(feature = "codec")]
+pub use codec::*;
+
 #[cfg(test)]
 mod tests;
 
