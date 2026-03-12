@@ -84,7 +84,7 @@ pub struct RequestPacket {
     /// Serial number of the data logging stick.
     pub serial: u32,
     /// Modbus RTU payload. Encoding will panic if this exceeds 256 bytes.
-    pub modbus_payload: Vec<u8>,
+    pub modbus_payload: Box<[u8]>,
 }
 
 impl PacketEncode for RequestPacket {
@@ -131,7 +131,7 @@ pub struct ResponsePacket {
     pub total_working_time: u32,
     pub power_on_time: u32,
     pub offset_time: u32,
-    pub modbus_payload: Vec<u8>,
+    pub modbus_payload: Box<[u8]>,
 }
 
 /// Unparsed packet (possibly of unknown kind).
@@ -141,7 +141,7 @@ pub struct RawPacket {
     pub seq: u8,
     pub serial: u32,
     pub control_code: u16,
-    pub raw_payload: Vec<u8>,
+    pub raw_payload: Box<[u8]>,
 }
 
 /// Enum returned as a result of packet parsing.
@@ -196,7 +196,7 @@ pub fn parse(buf: &[u8]) -> Result<Option<(ParsedPacket, usize)>> {
                 total_working_time: u32::from_le_bytes([buf[13], buf[14], buf[15], buf[16]]),
                 power_on_time: u32::from_le_bytes([buf[17], buf[18], buf[19], buf[20]]),
                 offset_time: u32::from_le_bytes([buf[21], buf[22], buf[23], buf[24]]),
-                modbus_payload: Vec::from(&buf[25..trailer_pos]),
+                modbus_payload: buf[25..trailer_pos].into(),
             })
         }
         _ => ParsedPacket::Unknown(RawPacket {
@@ -204,7 +204,7 @@ pub fn parse(buf: &[u8]) -> Result<Option<(ParsedPacket, usize)>> {
             seq: buf[6],
             serial: u32::from_le_bytes([buf[7], buf[8], buf[9], buf[10]]),
             control_code,
-            raw_payload: Vec::from(&buf[11..trailer_pos]),
+            raw_payload: buf[11..trailer_pos].into(),
         }),
     };
 

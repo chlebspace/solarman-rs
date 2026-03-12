@@ -17,7 +17,7 @@ fn request_packet() {
         id: 0x54,
         seq: 0,
         serial: 3185936016,
-        modbus_payload: vec![0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0a],
+        modbus_payload: Box::new([0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0a]),
     };
 
     let expected_bytes = [
@@ -48,7 +48,7 @@ fn parse_complete_packet() {
         total_working_time: 267563,
         power_on_time: 8558,
         offset_time: 1773053696,
-        modbus_payload: vec![0x01, 0x03, 0x02, 0x00, 0x05, 0x78, 0x47],
+        modbus_payload: Box::from([0x01, 0x03, 0x02, 0x00, 0x05, 0x78, 0x47]),
     });
     assert_eq!(parse(&bytes).unwrap(), Some((expected_packet, bytes.len())));
 }

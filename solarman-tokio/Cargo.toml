@@ -5,3 +5,13 @@ edition = "2024"
 
 [dependencies]
 thiserror = { workspace = true }
+tokio-util = { workspace = true, features = ["codec"] }
+modbus-rtu = { version = "1.3.1", default-features = false }
+solarman-protocol = { version = "0.1", path = "../solarman-protocol" }
+tokio = { version = "1", features = ["net", "io-util"] }
+futures = { version = "0.3", default-features = false }
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros"] }
+
