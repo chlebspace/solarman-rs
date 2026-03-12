@@ -15,8 +15,9 @@ impl<'a> Debug for HexAdapter<'a> {
 fn request_packet() {
     let packet = RequestPacket {
         id: 0x54,
+        seq: 0,
         serial: 3185936016,
-        modbus_payload: &[0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0a],
+        modbus_payload: vec![0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0a],
     };
 
     let expected_bytes = [
@@ -28,4 +29,27 @@ fn request_packet() {
         HexAdapter(&packet.encode_to_vec()),
         HexAdapter(&expected_bytes)
     )
+}
+
+#[test]
+fn parse_complete_packet() {
+    let bytes = [
+        0xa5, 0x15, 0x00, 0x10, 0x15, 0xeb, 0xb7, 0x90, 0x86, 0xe5, 0xbd, 0x02, 0x01, 0x2b, 0x15,
+        0x04, 0x00, 0x6e, 0x21, 0x00, 0x00, 0x00, 0xa7, 0xae, 0x69, 0x01, 0x03, 0x02, 0x00, 0x05,
+        0x78, 0x47, 0xf2, 0x15,
+    ];
+
+    let expected_packet = ParsedPacket::Response(ResponsePacket {
+        id: 0xeb,
+        seq: 0xb7,
+        serial: 3185936016,
+        frame_type: 0x02,
+        status: 0x01,
+        total_working_time: 267563,
+        power_on_time: 8558,
+        offset_time: 1773053696,
+        modbus_payload: vec![0x01, 0x03, 0x02, 0x00, 0x05, 0x78, 0x47],
+    });
+
+    assert_eq!(parse(&bytes), Ok(Some((expected_packet, bytes.len()))));
 }

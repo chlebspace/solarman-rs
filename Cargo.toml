@@ -4,3 +4,4 @@ members = ["solarman-protocol", "solarman-tokio"]
 
 [workspace.dependencies]
 thiserror = "2.0"
+tokio-util = "0.7.18"
