@@ -1,4 +1,4 @@
-use std::{time::Duration, u8};
+use std::time::Duration;
 
 use futures::{SinkExt, StreamExt};
 use solarman_protocol::{ParsedPacket, SolarmanCodec};
@@ -26,8 +26,6 @@ pub enum Error {
     UnexpectedEof,
     #[error("unexpected modbus response received")]
     UnexpectedResponse,
-    #[error("received wrong response sequence number")]
-    BadSequenceNumber,
     #[error("response doesn't match request serial (wrong serial number)")]
     BadSerial,
 }
@@ -36,7 +34,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 pub struct Client {
     seq: u8,
-    remote_seq: Option<u8>,
     serial: u32,
     modbus_id: u8,
     stream: Framed<TcpStream, SolarmanCodec>,
@@ -50,8 +47,7 @@ impl Client {
     ) -> Result<Self> {
         let tcp = TcpStream::connect(addr).await?;
         Ok(Self {
-            seq: u8::MAX,
-            remote_seq: None,
+            seq: 0,
             serial,
             modbus_id: modbus_slave_id,
             stream: Framed::new(tcp, SolarmanCodec),
@@ -62,35 +58,45 @@ impl Client {
         &mut self,
         function: &modbus_rtu::Function,
     ) -> Result<modbus_rtu::Response> {
-        // TODO: implement timeout
+        // TODO: implement timeout?
         let modbus_req = modbus_rtu::Request::new(self.modbus_id, function, Duration::ZERO);
         self.seq = self.seq.wrapping_add(1);
-        let solarman_req = solarman_protocol::RequestPacket {
-            id: self.seq,
-            seq: 0,
+        let solarman_req = solarman_protocol::Frame {
+            local_seq: self.seq,
+            remote_seq: 0,
             serial: self.serial,
-            modbus_payload: modbus_req.to_bytes()?,
+            packet: solarman_protocol::RequestPacket {
+                modbus_payload: modbus_req.to_bytes()?,
+            },
         };
+
         tracing::debug!("sending solarman request: {solarman_req:?}");
         self.stream.send(solarman_req).await?;
-        let solarman_resp = self.stream.next().await.ok_or(Error::UnexpectedEof)??;
-        tracing::debug!("received solarman response: {solarman_resp:?}");
+
         loop {
-            match solarman_resp {
+            let solarman_frame = self.stream.next().await.ok_or(Error::UnexpectedEof)??;
+            tracing::debug!("received solarman response: {solarman_frame:?}");
+
+            if solarman_frame.serial != self.serial {
+                return Err(Error::BadSerial);
+            }
+
+            if solarman_frame.local_seq != self.seq {
+                tracing::debug!("frame with invalid seq, dropping {solarman_frame:?}");
+                continue;
+            }
+
+            match solarman_frame.packet {
                 ParsedPacket::Response(resp) => {
-                    if resp.id != self.seq {
-                        return Err(Error::BadSequenceNumber);
-                    }
-                    if resp.serial != self.serial {
-                        return Err(Error::BadSerial);
-                    }
                     let modbus_resp =
                         modbus_rtu::Response::from_bytes(&modbus_req, &resp.modbus_payload)?;
                     tracing::debug!("modbus response decoded: {modbus_resp:?}");
                     return Ok(modbus_resp);
                 }
-                ParsedPacket::Unknown(ref packet) => {
-                    tracing::warn!("unknown solarman packet received: {packet:?}, skipping");
+                ParsedPacket::Unknown((code, payload)) => {
+                    tracing::warn!(
+                        "unknown solarman packet received: {code:02X} {payload:02X?}, skipping"
+                    );
                 }
             }
         }

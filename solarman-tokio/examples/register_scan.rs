@@ -1,6 +1,7 @@
-use std::{env::args, process};
+use std::{env::args, process, time::Duration};
 
 use solarman_tokio::Client;
+use tokio::time::sleep;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -22,6 +23,7 @@ async fn main() {
             Ok(o) => eprintln!("success => {}", o[0]),
             Err(e) => eprintln!("error => {e:?}"),
         }
+        sleep(Duration::from_millis(10000)).await;
     }
 
     client.shutdown().await.unwrap();
