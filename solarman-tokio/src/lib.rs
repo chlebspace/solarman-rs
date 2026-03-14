@@ -25,7 +25,7 @@ pub enum Error {
     #[error("the stream ended unexpectedly")]
     UnexpectedEof,
     #[error("unexpected modbus response received")]
-    UnexpectedResponse,
+    UnexpectedResponse(modbus_rtu::Response),
     #[error("response doesn't match request serial (wrong serial number)")]
     BadSerial,
 }
@@ -102,17 +102,133 @@ impl Client {
         }
     }
 
-    pub async fn read_holding_registers(&mut self, addr: u16, quantity: u16) -> Result<Box<[u16]>> {
+    pub async fn write_coil(&mut self, address: u16, value: bool) -> Result<()> {
         match self
-            .execute_modbus(&modbus_rtu::Function::ReadHoldingRegisters {
-                starting_address: addr,
+            .execute_modbus(&modbus_rtu::Function::WriteSingleCoil { address, value })
+            .await?
+        {
+            modbus_rtu::Response::Success => Ok(()),
+            modbus_rtu::Response::Exception(exception) => Err(Error::ModbusException(exception)),
+            response => Err(Error::UnexpectedResponse(response)),
+        }
+    }
+
+    pub async fn write_multiple_coils(
+        &mut self,
+        starting_address: u16,
+        values: Box<[bool]>,
+    ) -> Result<()> {
+        match self
+            .execute_modbus(&modbus_rtu::Function::WriteMultipleCoils {
+                starting_address,
+                value: values,
+            })
+            .await?
+        {
+            modbus_rtu::Response::Success => Ok(()),
+            modbus_rtu::Response::Exception(exception) => Err(Error::ModbusException(exception)),
+            response => Err(Error::UnexpectedResponse(response)),
+        }
+    }
+
+    pub async fn write_register(&mut self, address: u16, value: u16) -> Result<()> {
+        match self
+            .execute_modbus(&modbus_rtu::Function::WriteSingleRegister { address, value })
+            .await?
+        {
+            modbus_rtu::Response::Success => Ok(()),
+            modbus_rtu::Response::Exception(exception) => Err(Error::ModbusException(exception)),
+            response => Err(Error::UnexpectedResponse(response)),
+        }
+    }
+
+    pub async fn write_multiple_registers(
+        &mut self,
+        starting_address: u16,
+        values: Box<[u16]>,
+    ) -> Result<()> {
+        match self
+            .execute_modbus(&modbus_rtu::Function::WriteMultipleRegisters {
+                starting_address,
+                value: values,
+            })
+            .await?
+        {
+            modbus_rtu::Response::Success => Ok(()),
+            modbus_rtu::Response::Exception(exception) => Err(Error::ModbusException(exception)),
+            response => Err(Error::UnexpectedResponse(response)),
+        }
+    }
+
+    pub async fn read_coils(
+        &mut self,
+        starting_address: u16,
+        quantity: u16,
+    ) -> Result<Box<[bool]>> {
+        match self
+            .execute_modbus(&modbus_rtu::Function::ReadCoils {
+                starting_address,
+                quantity,
+            })
+            .await?
+        {
+            modbus_rtu::Response::Status(items) => Ok(items),
+            modbus_rtu::Response::Exception(exception) => Err(Error::ModbusException(exception)),
+            response => Err(Error::UnexpectedResponse(response)),
+        }
+    }
+
+    pub async fn read_discrete_inputs(
+        &mut self,
+        starting_address: u16,
+        quantity: u16,
+    ) -> Result<Box<[bool]>> {
+        match self
+            .execute_modbus(&modbus_rtu::Function::ReadDiscreteInputs {
+                starting_address,
+                quantity,
+            })
+            .await?
+        {
+            modbus_rtu::Response::Status(items) => Ok(items),
+            modbus_rtu::Response::Exception(exception) => Err(Error::ModbusException(exception)),
+            response => Err(Error::UnexpectedResponse(response)),
+        }
+    }
+
+    pub async fn read_input_registers(
+        &mut self,
+        starting_address: u16,
+        quantity: u16,
+    ) -> Result<Box<[u16]>> {
+        match self
+            .execute_modbus(&modbus_rtu::Function::ReadInputRegisters {
+                starting_address,
                 quantity,
             })
             .await?
         {
             modbus_rtu::Response::Value(items) => Ok(items),
             modbus_rtu::Response::Exception(exception) => Err(Error::ModbusException(exception)),
-            _ => Err(Error::UnexpectedResponse),
+            response => Err(Error::UnexpectedResponse(response)),
+        }
+    }
+
+    pub async fn read_holding_registers(
+        &mut self,
+        starting_address: u16,
+        quantity: u16,
+    ) -> Result<Box<[u16]>> {
+        match self
+            .execute_modbus(&modbus_rtu::Function::ReadHoldingRegisters {
+                starting_address,
+                quantity,
+            })
+            .await?
+        {
+            modbus_rtu::Response::Value(items) => Ok(items),
+            modbus_rtu::Response::Exception(exception) => Err(Error::ModbusException(exception)),
+            response => Err(Error::UnexpectedResponse(response)),
         }
     }
 
