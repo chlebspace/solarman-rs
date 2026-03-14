@@ -145,8 +145,7 @@ impl<P: PacketEncode> Frame<P> {
 
         // write trailer
         let checksum: u8 = solarman_checksum(&buf[1..trailer_pos]);
-        // TODO: should fail when buffer larger than necessary
-        buf[trailer_pos..].copy_from_slice(&[checksum, 0x15]);
+        buf[trailer_pos..frame_sz].copy_from_slice(&[checksum, 0x15]);
     }
 
     pub fn encode_to_vec(&self) -> Vec<u8> {
