@@ -17,13 +17,13 @@ where
 
     fn encode(
         &mut self,
-        size: Frame<P>,
+        frame: Frame<P>,
         dst: &mut tokio_util::bytes::BytesMut,
     ) -> Result<(), Self::Error> {
         let init_len = dst.len();
-        let frame_sz = size.size();
+        let frame_sz = frame.size();
         dst.resize(init_len + frame_sz, 0);
-        size.encode(&mut dst[init_len..]);
+        frame.encode(&mut dst[init_len..]);
         Ok(())
     }
 }
