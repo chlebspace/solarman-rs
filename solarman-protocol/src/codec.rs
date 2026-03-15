@@ -5,7 +5,7 @@ use tokio_util::{
     codec::{Decoder, Encoder},
 };
 
-use crate::{Frame, PacketEncode, ParsedFrame, parse_frame};
+use crate::{Frame, PacketEncode, ParsedPacket, parse_frame};
 
 pub struct SolarmanCodec;
 
@@ -29,7 +29,7 @@ where
 }
 
 impl Decoder for SolarmanCodec {
-    type Item = ParsedFrame;
+    type Item = Frame<ParsedPacket>;
     type Error = crate::Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {

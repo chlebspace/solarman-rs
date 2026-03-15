@@ -42,7 +42,7 @@ fn parse_complete_packet() {
         0x78, 0x47, 0xf2, 0x15,
     ];
 
-    let expected_frame = ParsedFrame {
+    let expected_frame = Frame {
         local_seq: 0xeb,
         remote_seq: 0xb7,
         serial: 3185936016,

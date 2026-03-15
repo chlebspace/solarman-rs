@@ -69,19 +69,6 @@ pub enum ParsedPacket {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ParsedFrame {
-    /// Local sequence number.
-    /// All incoming packets will have the same value here as the most recent outgoing frame.
-    pub local_seq: u8,
-    /// Remote sequence number.
-    /// This is incremented by the logging stick for every frame **globally** (including Cloud and other connections).
-    pub remote_seq: u8,
-    /// Serial number of the data logging stick.
-    pub serial: u32,
-    pub packet: ParsedPacket,
-}
-
-#[derive(Debug, PartialEq)]
 pub struct Frame<P> {
     /// Local sequence number.
     /// All incoming packets will have the same value here as the most recent outgoing frame.
@@ -164,7 +151,7 @@ impl<P: PacketEncode> Frame<P> {
 /// # Return value
 /// On success, the return value is the parsed frame and its complete length.
 /// If the buffer does not contain enough data, the return value is Ok(None).
-pub fn parse_frame(buf: &[u8]) -> Result<Option<(ParsedFrame, usize)>> {
+pub fn parse_frame(buf: &[u8]) -> Result<Option<(Frame<ParsedPacket>, usize)>> {
     let buf_len = buf.len();
     if buf_len < 11 {
         return Ok(None);
@@ -206,7 +193,7 @@ pub fn parse_frame(buf: &[u8]) -> Result<Option<(ParsedFrame, usize)>> {
         control_code => ParsedPacket::Unknown((control_code, buf[11..trailer_pos].into())),
     };
 
-    let frame = ParsedFrame {
+    let frame = Frame {
         local_seq: buf[5],
         remote_seq: buf[6],
         serial: u32::from_le_bytes([buf[7], buf[8], buf[9], buf[10]]),
