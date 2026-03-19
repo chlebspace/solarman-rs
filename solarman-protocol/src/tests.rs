@@ -7,7 +7,7 @@ struct HexAdapter<'a>(&'a [u8]);
 
 impl<'a> Debug for HexAdapter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:02X?}", self.0.as_ref())
+        write!(f, "{:02X?}", self.0)
     }
 }
 
