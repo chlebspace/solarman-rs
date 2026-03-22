@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tracing::info;
@@ -14,6 +14,7 @@ use std::sync::Arc;
 
 use crate::metric_store::MetricStore;
 
+mod metric;
 mod metric_store;
 
 #[derive(Parser, Debug)]
@@ -51,9 +52,9 @@ pub struct MetricManager {
 }
 
 impl MetricManager {
-    pub fn new(regmap: MetricStore, logger_cfg: LoggerConfig, cache_age: Duration) -> Self {
+    pub fn new(store: MetricStore, logger_cfg: LoggerConfig, cache_age: Duration) -> Self {
         Self {
-            store: regmap,
+            store,
             max_store_age: cache_age,
             logger_cfg,
             last_scrape: None,
@@ -86,8 +87,9 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     let args = Args::parse();
 
-    let regmap_file = File::open(args.regmap).await?;
-    let regmap = MetricStore::init_from_regmap(regmap_file).await?;
+    let mut regmap_source = String::new();
+    File::open(args.regmap).await?.read_to_string(&mut regmap_source).await?;
+    let regmap = MetricStore::create(&regmap_source)?;
 
     let logger_cfg = LoggerConfig {
         addr: args.address.parse()?,

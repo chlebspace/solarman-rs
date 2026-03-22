@@ -1,0 +1,9 @@
+batt_equalization_v = { regs = 99, map = "*0.1", type = "gauge", desc = "Battery equalization voltage" }
+battery_charge_total = { regs = [516, 517], map = "*0.01", type = "counter", desc = "total batt charge" }
+battery_out_power = { regs = 590, signed = true, type = "gauge", desc = "batt output power (signed)" }
+
+[grid_phase_voltage]
+type = "gauge"
+desc = "Grid phase voltage"
+regs.label = "phase"
+regs.values = { a = 598, b = 599, c = 600 }
