@@ -1,6 +1,6 @@
 use std::{fmt::Write, time::Instant};
 
-use crate::metric::{MetricContent, MappingOperation, Metric, ModbusCell};
+use crate::metric::{MappingOperation, Metric, MetricContent, ModbusCell};
 
 #[derive(Debug, Clone, Copy)]
 struct RegisterGroup {
@@ -34,7 +34,7 @@ impl MetricStore {
                     label: _label_name,
                     values: label_values,
                 } => {
-                    for (_, ModbusCell(low, high)) in label_values {
+                    for (_, ModbusCell(low, high)) in label_values.iter() {
                         regs.push(*low);
                         if let Some(high) = high {
                             regs.push(*high);
@@ -101,13 +101,14 @@ impl MetricStore {
             }
         };
         if mapping.is_empty() {
-            return writeln!(f, "{num}").unwrap();
+            writeln!(f, "{num}").unwrap();
+        } else {
+            let num = mapping.iter().fold(num as f64, |n, m| match m {
+                MappingOperation::Add(v) => n + v,
+                MappingOperation::Multiply(v) => n * v,
+            });
+            writeln!(f, "{num}").unwrap();
         }
-        let num = mapping.iter().fold(num as f64, |n, m| match m {
-            MappingOperation::Add(v) => n + v,
-            MappingOperation::Multiply(v) => n * v,
-        });
-        return writeln!(f, "{num}").unwrap();
     }
 
     pub fn encode_prometheus(&self) -> String {

@@ -88,7 +88,10 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     let mut regmap_source = String::new();
-    File::open(args.regmap).await?.read_to_string(&mut regmap_source).await?;
+    File::open(args.regmap)
+        .await?
+        .read_to_string(&mut regmap_source)
+        .await?;
     let regmap = MetricStore::create(&regmap_source)?;
 
     let logger_cfg = LoggerConfig {

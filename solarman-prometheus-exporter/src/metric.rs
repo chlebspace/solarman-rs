@@ -1,9 +1,9 @@
-use std::{collections::{BTreeMap, HashMap}, fmt::Display, str::FromStr};
+use std::{fmt::Display, marker::PhantomData, str::FromStr};
 
 use anyhow::bail;
 use serde::{
     Deserialize, Deserializer,
-    de::{self, SeqAccess, Visitor},
+    de::{self, MapAccess, SeqAccess, Visitor},
 };
 
 #[derive(Debug)]
@@ -83,9 +83,43 @@ pub enum MetricContent {
     Single(ModbusCell),
     Many {
         label: String,
-        // todo: Vec<(String, ModbusCell)>
-        values: HashMap<String, ModbusCell>,
+        #[serde(deserialize_with = "deserialize_map_to_vec")]
+        values: Vec<(String, ModbusCell)>,
     },
+}
+
+fn deserialize_map_to_vec<'de, K, V, D>(deserializer: D) -> Result<Vec<(K, V)>, D::Error>
+where
+    K: Deserialize<'de>,
+    V: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    struct MapToVecVisitor<K, V>(PhantomData<(K, V)>);
+
+    impl<'de, K, V> Visitor<'de> for MapToVecVisitor<K, V>
+    where
+        K: Deserialize<'de>,
+        V: Deserialize<'de>,
+    {
+        type Value = Vec<(K, V)>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a map")
+        }
+
+        fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+        where
+            M: MapAccess<'de>,
+        {
+            let mut vec = Vec::with_capacity(access.size_hint().unwrap_or(0));
+            while let Some((key, value)) = access.next_entry()? {
+                vec.push((key, value));
+            }
+            Ok(vec)
+        }
+    }
+
+    deserializer.deserialize_map(MapToVecVisitor(PhantomData))
 }
 
 #[derive(Debug)]
@@ -118,9 +152,7 @@ where
     let s: &str = Deserialize::deserialize(deserializer)?;
     let mut ops = Vec::new();
     for raw_op in s.split_ascii_whitespace() {
-        ops.push(
-            MappingOperation::from_str(raw_op).map_err(serde::de::Error::custom)?,
-        );
+        ops.push(MappingOperation::from_str(raw_op).map_err(serde::de::Error::custom)?);
     }
     Ok(ops)
 }
@@ -130,6 +162,7 @@ struct MetricFields {
     #[serde(rename = "type")]
     metric_type: MetricType,
     desc: String,
+    #[serde(deserialize_with = "deserialize_metric_content")]
     regs: MetricContent,
     #[serde(default)]
     signed: bool,
@@ -137,18 +170,42 @@ struct MetricFields {
     map: Vec<MappingOperation>,
 }
 
+fn deserialize_metric_content<'de, D>(deserializer: D) -> Result<MetricContent, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    MetricContent::deserialize(deserializer)
+}
+
 pub fn load_metrics(toml_str: &str) -> anyhow::Result<Vec<Metric>> {
-    // TODO: manually impl deserialize for vec<metric> instead of this
-    let raw: BTreeMap<String, MetricFields> = toml::from_str(toml_str)?;
-    Ok(raw
-        .into_iter()
-        .map(|(name, f)| Metric {
-            name,
-            desc: f.desc,
-            metric_type: f.metric_type,
-            signed: f.signed,
-            regs: f.regs,
-            mapping: f.map,
-        })
-        .collect())
+    struct VecMetricVisitor;
+
+    impl<'de> Visitor<'de> for VecMetricVisitor {
+        type Value = Vec<Metric>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a TOML document with metric sections")
+        }
+
+        fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+        where
+            A: de::MapAccess<'de>,
+        {
+            let mut metrics = Vec::new();
+            while let Some(key) = map.next_key::<String>()? {
+                let metric = map.next_value::<MetricFields>().map(|f| Metric {
+                    name: key,
+                    desc: f.desc,
+                    metric_type: f.metric_type,
+                    signed: f.signed,
+                    regs: f.regs,
+                    mapping: f.map,
+                })?;
+                metrics.push(metric);
+            }
+            Ok(metrics)
+        }
+    }
+
+    Ok(toml::Deserializer::parse(toml_str)?.deserialize_map(VecMetricVisitor)?)
 }
