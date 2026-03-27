@@ -31,10 +31,10 @@ impl MetricStore {
                     }
                 }
                 crate::metric::MetricContent::Many {
-                    label: _label_name,
+                    label: _,
                     values: label_values,
                 } => {
-                    for (_, ModbusCell(low, high)) in label_values.iter() {
+                    for (_, ModbusCell(low, high)) in label_values {
                         regs.push(*low);
                         if let Some(high) = high {
                             regs.push(*high);

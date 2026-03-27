@@ -1,16 +1,16 @@
 use anyhow::Context;
+use axum::response::IntoResponse;
+use axum::{Router, body::Body, http::StatusCode, response::Response, routing::get};
 use clap::Parser;
 use solarman_tokio::Client;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::fs::File;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
+use tokio::io::AsyncReadExt;
 use tokio::sync::Mutex;
 use tracing::info;
-
-use std::sync::Arc;
 
 use crate::metric_store::MetricStore;
 
@@ -102,21 +102,44 @@ async fn main() -> anyhow::Result<()> {
     let metric_manager = MetricManager::new(regmap, logger_cfg, Duration::from_secs(30));
     let metric_manager = Arc::new(Mutex::new(metric_manager));
 
-    let listener = TcpListener::bind(args.bind)
+    let app = Router::new().fallback(get(landing_handler)).route(
+        "/metrics",
+        get({
+            let metric_manager = metric_manager.clone();
+            move || export_metrics(metric_manager)
+        }),
+    );
+
+    let listener = tokio::net::TcpListener::bind(args.bind)
         .await
         .with_context(|| "failed to bind the prometheus metrics socket")?;
     info!("Metrics server listening on http://{}", args.bind);
 
-    loop {
-        let (mut socket, _) = listener.accept().await?;
-        let exporter = metric_manager.clone();
+    axum::serve(listener, app).await?;
 
-        tokio::spawn(async move {
-            // TODO: write proper http support
-            socket
-                .write_all(exporter.lock().await.export().await?.as_bytes())
-                .await?;
-            anyhow::Ok(())
-        });
+    Ok(())
+}
+
+async fn export_metrics(metric_manager: Arc<Mutex<MetricManager>>) -> Response<Body> {
+    match metric_manager.lock().await.export().await {
+        Ok(metrics) => Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from(metrics))
+            .unwrap_or_else(|_| Response::new(Body::empty())),
+        Err(e) => {
+            tracing::error!("failed to export metrics: {e}");
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::from(format!("internal error: {e}")))
+                .unwrap_or_else(|_| Response::new(Body::empty()))
+        }
     }
+}
+
+async fn landing_handler() -> impl IntoResponse {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "text/html")
+        .body(Body::from(include_str!("landing.html")))
+        .unwrap()
 }
